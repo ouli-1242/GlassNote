@@ -98,3 +98,7 @@ Git Bash 把 `/usr/bin/link.exe`（coreutils 的硬链接工具）当成了 MSVC
 
 更多实现细节（在改完之前）：`src-tauri/src/glass.rs`（Mica/Acrylic 探测）、
 `src-tauri/src/recurrence.rs`（重复规则引擎）、`src/styles.css`（两套配色变量）。
+
+## 许可证
+
+[MIT](LICENSE) —— 可自由使用、修改、分发，包括商业用途；作者不承担任何担保责任。
