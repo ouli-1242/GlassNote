@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GlassNote</title>
+    <!--
+      这里刻意不放任何内联脚本。
+      首帧的主题/透明度由 Rust 通过 initialization_script 注入
+      `window.__GLASSNOTE_BOOT__`（在页面脚本之前执行，且不受页面 CSP 限制），
+      由 src/lib/boot.ts 应用。内联脚本会被生产环境的 `script-src 'self'` 拦掉。
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

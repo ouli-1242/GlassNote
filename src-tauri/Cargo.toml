@@ -1,0 +1,69 @@
+[package]
+name = "glassnote"
+version = "0.1.0"
+description = "GlassNote — 轻量桌面便签"
+authors = ["GlassNote"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+# Tauri 2 要求 lib 形式，main.rs 只是薄壳，便于将来做移动端入口
+name = "glassnote_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# image-png 用于运行时解码托盘图标；tray-icon 打开托盘能力
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-store = "2"
+tauri-plugin-window-state = "2"
+
+# bundled 把 SQLite 源码编进二进制，不依赖系统 DLL，也便于精确控制 PRAGMA。
+# backup 打开在线备份 API —— 从备份恢复时用它把数据灌回**活动连接**，
+# 而不是去覆盖 .db 文件（覆盖文件会绕过 WAL，导致未 checkpoint 的写入丢失）。
+rusqlite = { version = "0.40", features = ["bundled", "backup"] }
+
+# 动态玻璃直接依赖 window-vibrancy，而**不用** Tauri 的 `set_effects`。
+#
+# 原因：Tauri 2.11 的 `set_effects` 在 Windows 上把 window-vibrancy 的返回值
+# 直接丢掉了（`apply_effects` 返回 `()`，外层永远返回 Ok），于是：
+#   1. 无法知道到底哪个效果生效了；
+#   2. 没有降级链 —— 它只取候选列表里第一个匹配的项，失败就什么都不做，
+#      不会去试下一个。Win10 上 Mica 失败 = 完全没有玻璃效果。
+#   3. `radius` 参数被解构丢弃，不做 DWM 圆角。
+# 所以这里自己调 window-vibrancy，逐个判断 Err 来实现降级，并自行设置圆角。
+window-vibrancy = "0.8"
+# 仅用于取 HWND 去调 dwmapi 设置圆角；已是 tauri / window-vibrancy 的传递依赖，
+# 显式声明不增加任何编译成本。
+raw-window-handle = "0.6"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+# 隐私锁的 PIN 只存加盐哈希，不存明文
+sha2 = "0.10"
+
+[profile.release]
+# 目标安装包 < 10MB：体积优先，同时保留足够性能
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+incremental = false
+
+[profile.dev]
+# 开发期给依赖开优化，否则 rusqlite/tauri 的 debug 构建慢到无法交互
+opt-level = 0
+incremental = true
+
+[profile.dev.package."*"]
+opt-level = 2

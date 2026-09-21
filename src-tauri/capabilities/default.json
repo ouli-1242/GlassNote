@@ -1,0 +1,34 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "GlassNote 主窗口与快速捕获窗口的权限集合。原则：能放在 Rust 里做的都放 Rust（Rust 侧调用不受权限系统限制），前端只申请它真正直接调用的能力。",
+  "windows": ["main", "capture", "note-*"],
+  "permissions": [
+    "core:default",
+
+    "core:event:default",
+
+    "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-skip-taskbar",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-outer-size",
+    "core:window:allow-inner-size",
+    "core:window:allow-current-monitor",
+    "core:window:allow-available-monitors",
+    "core:window:allow-scale-factor",
+    "core:window:allow-is-visible",
+    "core:window:allow-is-focused",
+
+    "dialog:default",
+    "notification:default"
+  ]
+}

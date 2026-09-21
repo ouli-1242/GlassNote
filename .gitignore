@@ -1,0 +1,31 @@
+# 依赖与构建产物
+node_modules/
+dist/
+src-tauri/target/
+
+# tauri-build 每次构建都会重新生成的 ACL 权限 schema
+src-tauri/gen/schemas/
+
+# Vite 每次启动都会留下的临时文件（文件名带时间戳）
+vite.config.ts.timestamp-*.mjs
+
+# 便携模式：exe 同目录放标记后，数据会落在旁边的 data/
+src-tauri/data/
+src-tauri/*.portable
+src-tauri/*.db
+src-tauri/*.db-wal
+src-tauri/*.db-shm
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+*.log
+
+# 本地数据（便携模式下可能落在仓库旁）
+*.db
+*.db-wal
+*.db-shm
+backups/

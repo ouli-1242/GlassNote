@@ -1,0 +1,410 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   配色：暖中性 + 陶土橙，只有白天与黑夜两套
+
+   两套值取自同一族色。**暗色不是浅色的反色** —— 反色会把 #f7f7f3 的暖调
+   翻成冷蓝，那就不再是同一套配色了；所以暗色的底色直接用这套配色自己的
+   深色端（#292824 / #35332f）往下压。
+
+   色值以 `H S% L%` 三元组存放（不带 hsl() 外壳），
+   因为 Tailwind 的 `hsl(var(--x) / <alpha-value>)` 需要这种形式才能调透明度。
+
+   三个色阶的关系在两种主题下一致：
+     --background  面板底色，也是"画布"
+     --surface     卡片 / 弹层 / 悬停面，比画布更亮（暗色下是更亮，不是更暗）
+     --muted       中性填充：滑块轨道、开关底、下沉区域
+   卡片比画布亮这一条必须成立，否则 `bg-surface/0.5` 这类悬停会变得不可见。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* 面板不透明度。默认接近不透明：这套配色的层次靠色块区分，不是靠透视背景，
+     压得太低会让文字压在桌面壁纸上、对比度不足。 */
+  --panel-opacity: 0.96;
+
+  /* 面板圆角。运行时由 store 依据玻璃探测结果覆写：
+     系统能裁剪圆角时为 8px（与 DWM 的 ROUND 档位对齐），否则为 0。
+     不能写死成更大的值 —— DWM 没有自定义半径，CSS 画得比它大，
+     两者之间那一圈会既无系统背景也无面板着色，四角直接露出桌面。
+     详见 src-tauri/src/glass.rs。 */
+  --panel-radius: 8px;
+
+  --row-h: 56px;
+}
+
+/* ── 白天 ───────────────────────────────────────────────────────────── */
+.light {
+  --background: 60 20% 96%; /* #f7f7f3 画布 */
+  --surface: 45 100% 99%; /* #fffefb 卡片 */
+  --surface-hover: 48 20% 90%; /* #ebe9e1 */
+  --muted: 51 20% 93%; /* #f1f0ea */
+  --foreground: 45 6% 14%; /* #252421 */
+  --muted-foreground: 40 4% 43%; /* #73706a */
+  --border: 48 14% 85%; /* #dfddd5 */
+
+  /* 强调色取的是这套配色里的"深一档"陶土橙 #b95537，而不是更鲜艳的 #cf6d4d。
+     原因是对比度：这个变量既当填充色也当图标与文字色，
+     #cf6d4d 在白底上只有 3.5:1，#b95537 是 4.7:1，白字压在其上也是 4.8:1，
+     两处都过 4.5。色相完全相同，看起来仍是同一个橙。 */
+  --accent: 14 54% 47%; /* #b95537 */
+  --accent-foreground: 0 0% 100%;
+  --ring: 14 54% 47%;
+
+  /* 优先级四档只用作任务行左侧那根色条（非文字），所以可以放心用饱和色，
+     靠色相拉开区分度。高=陶土橙、紧急=砖红，两者同族但一橙一红，能分辨。
+     唯一要保证文字可读的是"紧急"档：它在多处当错误色用，对白底 5.8:1。 */
+  --priority-low: 40 6% 58%; /* 暖灰 */
+  --priority-normal: 205 20% 47%; /* 石板蓝灰 */
+  --priority-high: 15 58% 56%; /* #cf6d4d 陶土橙 */
+  --priority-urgent: 6 59% 44%; /* #b23c2e 砖红，对白底 5.8:1 */
+
+  --edge-light: hsl(0 0% 100% / 0.75);
+  --shadow-lift: hsl(44 40% 30% / 0.16);
+}
+
+/* ── 黑夜 ───────────────────────────────────────────────────────────── */
+.dark {
+  --background: 40 6% 10%; /* #1c1b19 画布 */
+  --surface: 45 7% 16%; /* #2c2a26 卡片 */
+  --surface-hover: 40 6% 22%; /* #3b3833 */
+  --muted: 40 5% 24%; /* #403c37 */
+  --foreground: 45 33% 98%; /* #fbfaf7 */
+  --muted-foreground: 42 7% 63%; /* #a8a49b */
+  --border: 38 7% 25%; /* #443f38 */
+
+  /* 暗底上要反过来提亮：#cf6d4d 压在 #1c1b19 上只有 2.6:1，读不清。
+     #e08a68 对面板底 5.6:1，深色字压在其上 6.4:1。 */
+  --accent: 17 66% 64%; /* #e08a68 */
+  --accent-foreground: 20 40% 12%; /* #2b1c14 */
+  --ring: 17 66% 64%;
+
+  --priority-low: 40 7% 60%;
+  --priority-normal: 205 25% 62%;
+  --priority-high: 17 66% 64%;
+  --priority-urgent: 8 68% 63%; /* 对面板底 4.7:1 */
+
+  --edge-light: hsl(45 33% 98% / 0.07);
+  --shadow-lift: hsl(0 0% 0% / 0.5);
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  /* 关键：窗口是 transparent 的，这三层都必须全透明，
+     否则会在 Mica 之上糊一层不透明底色，玻璃效果直接失效 */
+  background: transparent;
+}
+
+body {
+  color: hsl(var(--foreground));
+  font-family: system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  font-size: calc(13px * var(--font-scale, 1));
+  line-height: 1.5;
+  /* 桌面应用不该有网页那种文字选择行为，只在正文区域重新打开 */
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+  text-rendering: optimizeLegibility;
+}
+
+/* 拖动窗口时给整窗一个统一的"正在拖动"状态 */
+body.is-dragging {
+  cursor: grabbing;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   面板分层（自下而上）
+
+     0. 系统级 Mica / Acrylic / Blur —— 由 DWM 绘制在窗口背后，本文件管不到。
+        它几乎不耗 GPU，是这套界面里唯一的"玻璃"来源。
+     1. .glass-blur   CSS 模糊兜底层。**仅在系统玻璃不可用时**才有内容，
+                      所以排在着色层下面 —— 排在上面会把配色冲淡。
+     2. .glass-tint   面板着色。上面那道极淡的顶部渐变只是静态一层漆，
+                      用来避免大面积纯色发死，不参与任何动画。
+     3. .glass-edge   1px 描边 + 内侧上缘高光
+     4. 内容
+
+   刻意**没有**光斑、噪点、鼠标跟随高光这三层。
+   它们是这套界面里唯一按帧重绘的东西（三个 will-change: transform 的
+   全尺寸渐变图层 + 一张噪点纹理 + 一个随指针移动的径向渐变），
+   去掉之后空闲与交互时都不再产生任何 GPU 合成工作。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.glass-root {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  border-radius: var(--panel-radius);
+  overflow: hidden;
+  isolation: isolate;
+  /* 让 DWM 的圆角裁切与 CSS 的圆角抗锯齿对齐 */
+  transform: translateZ(0);
+}
+
+.glass-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-tint {
+  background:
+    linear-gradient(180deg, hsl(var(--surface) / 0.55), transparent 38%),
+    hsl(var(--background));
+  opacity: var(--panel-opacity);
+}
+
+/* 只在没有系统级玻璃时才用 backdrop-filter 兜底。
+   有 Mica 时再用 CSS 模糊是纯粹的浪费 —— 同一片区域模糊两遍。
+   这也是规格要求的 Win10 降级路径：Mica 不可用时至少还有一层模糊。 */
+.glass-root[data-effect="css"] .glass-blur {
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  background: hsl(var(--background) / 0.72);
+}
+
+.glass-edge {
+  border-radius: var(--panel-radius);
+  border: 1px solid hsl(var(--border) / 0.85);
+  box-shadow: inset 0 1px 0 0 var(--edge-light);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   折叠动画
+
+   用 grid-template-rows 0fr → 1fr 实现"高度 auto"过渡：
+   max-height 需要猜一个足够大的值，猜小了会截断、猜大了动画节奏会不对；
+   grid 方案不需要知道内容高度，是纯 CSS 里唯一正确的做法。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms ease;
+  opacity: 1;
+}
+
+.collapsible[data-collapsed="true"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.collapsible > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   滚动条：细、半透明、悬停才明显
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.scroll-area {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+
+.scroll-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-area::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.25);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.scroll-area:hover::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.45);
+  background-clip: content-box;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   可拖动 / 不可拖动
+
+   整个面板默认是拖动区（由 JS 统一处理，见 useDragRegion.ts），
+   凡是需要接收点击、输入、拖拽排序的元素都必须显式排除。
+   用 `[data-no-drag]` 而不是逐个写类名，方便审查"到底哪些区域不拖"。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+[data-no-drag] {
+  -webkit-app-region: no-drag;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* 输入框在面板上要有一层更实的底，否则光标和文字会跟背景糊在一起 */
+.field {
+  background: hsl(var(--surface) / 0.75);
+  border: 1px solid hsl(var(--border) / 0.8);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.field:focus-within,
+.field:focus {
+  border-color: hsl(var(--accent) / 0.85);
+  background: hsl(var(--surface));
+  outline: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   动效
+
+   所有 keyframes 都定义在这里，而不是 tailwind.config.js。
+   原因：Tailwind 只在对应的 `animate-*` 工具类**被用到**时才产出 @keyframes，
+   而下面这些类是直接引用 keyframes 的普通 CSS 类 ——
+   放在配置里就等于依赖"某个组件恰好用了 animate-xxx"，
+   漏掉一个不会报错，只会静默地不播动画。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 打勾时对勾本身弹一下 */
+@keyframes check-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 任务完成：先原地淡出缩小，再向右滑走，最后把高度收到 0 让列表重排。
+   收高度用 maxHeight 而不是 height，是因为行高由 CSS 决定（--row-h），
+   JS 不需要知道具体像素值。 */
+@keyframes task-done {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    max-height: var(--row-h);
+  }
+  55% {
+    opacity: 0.35;
+    transform: translateX(6px) scale(0.97);
+    max-height: var(--row-h);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(28px) scale(0.9);
+    max-height: 0;
+  }
+}
+
+.anim-fade-in {
+  animation: fade-in 160ms ease-out both;
+}
+
+.anim-scale-in {
+  animation: scale-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.anim-slide-up {
+  animation: slide-up 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   交互反馈
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.lift {
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px -12px var(--shadow-lift);
+}
+
+.press:active {
+  transform: scale(0.97);
+}
+
+.task-done {
+  animation: task-done 420ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+.check-pop {
+  animation: check-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 高对比度：确保键盘焦点永远可见（无障碍要求） */
+:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
+  .task-done,
+  .check-pop,
+  .anim-fade-in,
+  .anim-scale-in,
+  .anim-slide-up {
+    animation-duration: 1ms !important;
+  }
+}
